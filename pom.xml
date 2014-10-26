@@ -3,7 +3,7 @@
 
   <groupId>cc.mallet</groupId>
   <artifactId>mallet</artifactId>
-  <version>2.0.8-SNAPSHOT</version>
+  <version>2.0.8.argo</version>
   <packaging>jar</packaging>
   <name>MAchine Learning for LanguagE Toolkit (MALLET)</name>
   <description>
@@ -41,6 +41,9 @@
     <maven.compiler.target>1.6</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <maven-surefire-version>2.17</maven-surefire-version>
+
   </properties>
   <build>
     <sourceDirectory>src</sourceDirectory>
@@ -83,7 +86,51 @@
       <version>1.1</version>
     </dependency>
   </dependencies>
-  <distributionManagement>
+
+  <profiles>
+    <profile>
+      <id>release</id>
+      <distributionManagement>
+        <repository>
+          <id>argo</id>
+          <name>membuild01.argo.local-releases</name>
+          <url>http://membuild01:8081/artifactory/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>argo</id>
+          <name>membuild01.argo.local-snapshots</name>
+          <url>http://membuild01:8081/artifactory/libs-snapshot-local</url>
+          <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+      </distributionManagement>
+    </profile>
+
+    <profile>
+      <id>no-tests</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven-surefire-version}</version>
+            <dependencies>
+              <dependency>
+                <groupId>org.apache.maven.surefire</groupId>
+                <artifactId>surefire-junit47</artifactId>
+                <version>${maven-surefire-version}</version>
+              </dependency>
+            </dependencies>
+            <configuration>
+              <skipTests>true</skipTests>
+              <testFailureIgnore>false</testFailureIgnore>
+              <forkMode>always</forkMode>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+  </profiles>
+  <!--<distributionManagement>
     <repository>
       <id>dev-iesl.cs.umass.edu</id>
       <name>dev-iesl.cs.umass.edu</name>
@@ -96,4 +143,5 @@
       <uniqueVersion>true</uniqueVersion>
     </snapshotRepository>
   </distributionManagement>
+  -->
 </project>

@@ -3,3 +3,4 @@ dist/mallet-deps.jar
 dist/mallet.jar
 .idea
 mallet.iml
+TestObject.obj
