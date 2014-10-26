@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.github.steveash.mallet</groupId>
@@ -121,49 +120,61 @@
     </dependency>
 
   </dependencies>
-
+  <distributionManagement>
+    <repository>
+      <id>dev-iesl.cs.umass.edu</id>
+      <name>dev-iesl.cs.umass.edu</name>
+      <url>https://dev-iesl.cs.umass.edu/nexus/content/repositories/releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>dev-iesl.cs.umass.edu</id>
+      <name>dev-iesl.cs.umass.edu</name>
+      <url>https://dev-iesl.cs.umass.edu/nexus/content/repositories/snapshots</url>
+      <uniqueVersion>true</uniqueVersion>
+    </snapshotRepository>
+  </distributionManagement>
+  
   <profiles>
-    <profile>
-      <id>argo-release</id>
-      <distributionManagement>
-        <repository>
-          <id>argo</id>
-          <name>membuild01.argo.local-releases</name>
-          <url>http://membuild01:8081/artifactory/libs-release-local</url>
-        </repository>
-        <snapshotRepository>
-          <id>argo</id>
-          <name>membuild01.argo.local-snapshots</name>
-          <url>http://membuild01:8081/artifactory/libs-snapshot-local</url>
-          <uniqueVersion>false</uniqueVersion>
-        </snapshotRepository>
-      </distributionManagement>
-    </profile>
-
-    <profile>
-      <id>no-tests</id>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <version>${maven-surefire-version}</version>
-            <dependencies>
-              <dependency>
-                <groupId>org.apache.maven.surefire</groupId>
-                <artifactId>surefire-junit47</artifactId>
-                <version>${maven-surefire-version}</version>
-              </dependency>
-            </dependencies>
-            <configuration>
-              <skipTests>true</skipTests>
-              <testFailureIgnore>false</testFailureIgnore>
-              <forkMode>always</forkMode>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-
-  </profiles>
-
+      <profile>
+        <id>argo-release</id>
+        <distributionManagement>
+          <repository>
+            <id>argo</id>
+            <name>membuild01.argo.local-releases</name>
+            <url>http://membuild01:8081/artifactory/libs-release-local</url>
+          </repository>
+          <snapshotRepository>
+            <id>argo</id>
+            <name>membuild01.argo.local-snapshots</name>
+            <url>http://membuild01:8081/artifactory/libs-snapshot-local</url>
+            <uniqueVersion>false</uniqueVersion>
+          </snapshotRepository>
+        </distributionManagement>
+      </profile>
+  
+      <profile>
+        <id>no-tests</id>
+        <build>
+          <plugins>
+            <plugin>
+              <artifactId>maven-surefire-plugin</artifactId>
+              <version>${maven-surefire-version}</version>
+              <dependencies>
+                <dependency>
+                  <groupId>org.apache.maven.surefire</groupId>
+                  <artifactId>surefire-junit47</artifactId>
+                  <version>${maven-surefire-version}</version>
+                </dependency>
+              </dependencies>
+              <configuration>
+                <skipTests>true</skipTests>
+                <testFailureIgnore>false</testFailureIgnore>
+                <forkMode>always</forkMode>
+              </configuration>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+  
+    </profiles>
 </project>
