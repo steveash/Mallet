@@ -613,7 +613,7 @@ public class CRF extends Transducer implements Serializable
 		parameters.finalWeights = MatrixOps.append(parameters.finalWeights, finalWeight);
 		State s = newState (name, states.size(), initialWeight, finalWeight,
 				destinationNames, labelNames, weightNames, this);
-		s.print ();
+//		s.print ();
 		states.add (s);
 		if (initialWeight > IMPOSSIBLE_WEIGHT)
 			initialStates.add (s);
@@ -1049,7 +1049,7 @@ public class CRF extends Transducer implements Serializable
 			int numLabels = outputAlphabet.size();
 			while (historyIndexes[0] < numLabels)
 			{
-				logger.info("Preparing " + concatLabels(history));
+				//logger.info("Preparing " + concatLabels(history));
 				if (allowedHistory(history, forbidden, allowed))
 				{
 					String stateName = concatLabels(history);
@@ -1100,8 +1100,8 @@ public class CRF extends Transducer implements Serializable
 						StringBuffer b = new StringBuffer();
 						for (int j = 0; j < orders.length; j++)
 							b.append(" ").append(weightNames[i][j]);
-						logger.info(stateName + "->" + destNames[i] +
-								"(" + labelNames[i] + ")" + b.toString());
+//						logger.info(stateName + "->" + destNames[i] +
+//								"(" + labelNames[i] + ")" + b.toString());
 					}
 					addState (stateName, 0.0, 0.0, destNames, labelNames, weightNames);
 				}
@@ -1316,7 +1316,7 @@ public class CRF extends Transducer implements Serializable
 		SparseVector[] newWeights = new SparseVector[parameters.weights.length];
 		for (int i = 0; i < parameters.weights.length; i++) {
 			int numLocations = weightsPresent[i].cardinality ();
-			logger.info ("CRF weights["+parameters.weightAlphabet.lookupObject(i)+"] num features = "+numLocations);
+			//logger.info ("CRF weights["+parameters.weightAlphabet.lookupObject(i)+"] num features = "+numLocations);
 			int[] indices = new int[numLocations];
 			for (int j = 0; j < numLocations; j++) {
 				indices[j] = weightsPresent[i].nextSetBit (j == 0 ? 0 : indices[j-1]+1);

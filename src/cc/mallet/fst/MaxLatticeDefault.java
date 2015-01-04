@@ -348,7 +348,7 @@ public class MaxLatticeDefault implements MaxLattice
 			return stateAlignmentCache;
 		bestViterbiNodeSequences(n); // ensure that viterbiNodeAlignmentCache has at least size n
 		ArrayList<SequencePairAlignment<Object,State>> ret = new ArrayList<SequencePairAlignment<Object,State>>(n);
-		for (int i = 0; i < n; i++) {
+		for (int i = 0; i < n && i < viterbiNodeAlignmentCache.size(); i++) {
 			State[] ss = new State[latticeLength];
 			Sequence<ViterbiNode> vs = viterbiNodeAlignmentCache.get(i).output();
 			for (int j = 0; j < latticeLength; j++)
@@ -366,7 +366,7 @@ public class MaxLatticeDefault implements MaxLattice
 	public List<Sequence<State>> bestStateSequences(int n) {
 		List<SequencePairAlignment<Object,State>> a = bestStateAlignments(n);
 		ArrayList<Sequence<State>> ret = new ArrayList<Sequence<State>>(n);
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < n && i < a.size(); i++)
 			ret.add (a.get(i).output());
 		return ret;
 	}
@@ -382,7 +382,7 @@ public class MaxLatticeDefault implements MaxLattice
 			return outputAlignmentCache;
 		bestViterbiNodeSequences(n); // ensure that viterbiNodeAlignmentCache has at least size n
 		ArrayList<SequencePairAlignment<Object,Object>> ret = new ArrayList<SequencePairAlignment<Object,Object>>(n);
-		for (int i = 0; i < n; i++) {
+		for (int i = 0; i < n && i < viterbiNodeAlignmentCache.size(); i++) {
 			Object[] ss = new Object[latticeLength-1];
 			Sequence<ViterbiNode> vs = viterbiNodeAlignmentCache.get(i).output();
 			for (int j = 0; j < latticeLength-1; j++)
@@ -400,7 +400,7 @@ public class MaxLatticeDefault implements MaxLattice
 	public List<Sequence<Object>> bestOutputSequences (int n) {
 		bestOutputAlignments(n); // ensure that outputAlignmentCache has at least size n
 		ArrayList<Sequence<Object>> ret = new ArrayList<Sequence<Object>>(n);
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < n && i < outputAlignmentCache.size(); i++)
 			ret.add (outputAlignmentCache.get(i).output());
 		return ret;
 		// TODO consider caching this result
