@@ -1348,7 +1348,9 @@ public class CRF extends Transducer implements Serializable
   public void pruneFeaturesBelowCount(InstanceList trainingData, final int cutAllBelow) {
     final TIntIntHashMap[] weightCounts;
     int numWeights = 0;
-    weightsStructureChanged();
+    if (cutAllBelow != 0) {
+      weightsStructureChanged();
+    }
     weightCounts = new TIntIntHashMap[parameters.weights.length];
     for (int i = 0; i < parameters.weights.length; i++) {
       weightCounts[i] = new TIntIntHashMap();
@@ -1438,6 +1440,80 @@ public class CRF extends Transducer implements Serializable
       }
     });
     return counter[0];
+  }
+
+  /**
+   * Prints stats about the learned feature weights and then prunes any whose abs value is
+   * below the value at the specified percentile.  If zero is passed in then nothing is
+   * pruned and the structure doesn't report as changed.  i.e. passing 10 will prune all
+   * features whose optimized values are below whatever value is the 10 percentile value.
+   *
+   * You will need to reoptimize after calling this since the gradient & Z will change
+   * @param pruneBelowPercentile
+   */
+  public void pruneFeaturesBelowPercentile(int pruneBelowPercentile) {
+    if (pruneBelowPercentile < 0 || pruneBelowPercentile > 100) {
+      throw new IllegalArgumentException("Must pass a value in [0, 100] to the prune");
+    }
+    if (pruneBelowPercentile > 0) {
+      weightsStructureChanged();
+    }
+    DescriptiveStatistics stats = collectPruneStats();
+    if (pruneBelowPercentile == 0) return;
+
+    double threshValue = stats.getPercentile(pruneBelowPercentile);
+    logger.info("Pruning values below " + threshValue);
+    int newCount = 0;
+    for (int i = 0; i < parameters.weights.length; i++) {
+      SparseVector features = parameters.weights[i];
+      int newSize = 0;
+      for (int j = 0; j < features.numLocations(); j++) {
+        double v = features.valueAtLocation(j);
+        if (Math.abs(v) >= threshValue) {
+          newSize += 1;
+        }
+      }
+      if (newSize == features.numLocations()) continue;
+
+      int[] indexes = new int[newSize];
+      double[] vals = new double[newSize];
+      int next = 0;
+      for (int j = 0; j < features.numLocations(); j++) {
+        double v = features.valueAtLocation(j);
+        if (Math.abs(v) >= threshValue) {
+          indexes[next] = features.indexAtLocation(j);
+          vals[next] = v;
+          next += 1;
+          newCount += 1;
+        }
+      }
+      parameters.weights[i] = new IndexedSparseVector(indexes, vals, indexes.length, indexes.length,
+                                                      false, false, false);
+    }
+    logger.info("After pruning there are " + newCount + " parameters");
+  }
+
+  private DescriptiveStatistics collectPruneStats() {
+    DescriptiveStatistics stats = new DescriptiveStatistics();
+    int zeroCount = 0, negCount = 0, posCount = 0;
+    for (int i = 0; i < parameters.weights.length; i++) {
+      SparseVector features = parameters.weights[i];
+      for (int j = 0; j < features.numLocations(); j++) {
+        double v = features.valueAtLocation(j);
+        stats.addValue(Math.abs(v));
+        if (v < 0) negCount++;
+        else if (v > 0) posCount++;
+        else zeroCount++;
+      }
+    }
+    logger.info("Prune feature stats:\n" + stats.toString());
+    logger.info(" feature < 0: " + negCount);
+    logger.info(" feature > 0: " + posCount);
+    logger.info(" feature = 0: " + zeroCount);
+    for (int i = 5; i <= 100; i += 5) {
+      logger.info(" feature value " + i + " percentile: " + stats.getPercentile(i));
+    }
+    return stats;
   }
 
 
@@ -1593,7 +1669,7 @@ public class CRF extends Transducer implements Serializable
 	/** Only gets the parameter from the first group of parameters. */
 	public double getParameter (int sourceStateIndex, int destStateIndex, int featureIndex)
 	{
-		return getParameter(sourceStateIndex,destStateIndex,featureIndex,0);
+		return getParameter(sourceStateIndex, destStateIndex, featureIndex, 0);
 	}
 	
 	public double getParameter (int sourceStateIndex, int destStateIndex, int featureIndex, int weightIndex)
