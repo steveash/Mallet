@@ -160,7 +160,11 @@ public class CRFTrainerByThreadedLabelLikelihood extends TransducerTrainer imple
 	 * Be sure to end in 1.0 if you want to train on all the data in the end.  
 	 * @return True if training has converged.
 	 */
-	public boolean train (InstanceList training, int numIterationsPerProportion, double[] trainingProportions)
+	public boolean train (InstanceList training, int numIterationsPerProportion, double[] trainingProportions) {
+          return train(training, numIterationsPerProportion, numIterationsPerProportion, trainingProportions);
+        }
+
+	public boolean train (InstanceList training, int numIterationsPerProportion, int maxIterationsOnFull, double[] trainingProportions)
 	{
 		int trainingIteration = 0;
 		assert (trainingProportions.length > 0);
@@ -169,7 +173,7 @@ public class CRFTrainerByThreadedLabelLikelihood extends TransducerTrainer imple
 			assert (trainingProportions[i] <= 1.0);
 			logger.info ("Training on "+trainingProportions[i]+"% of the data this round.");
 			if (trainingProportions[i] == 1.0) {
-				converged = this.train (training, numIterationsPerProportion);
+				converged = this.train (training, maxIterationsOnFull);
 			}
 			else { 
 				converged = this.train (training.split (new Random(1),	
