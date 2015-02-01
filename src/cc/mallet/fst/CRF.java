@@ -14,6 +14,12 @@
 
 package cc.mallet.fst;
 
+import gnu.trove.TIntIntHashMap;
+import gnu.trove.TIntIntProcedure;
+import gnu.trove.TIntProcedure;
+
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -1331,7 +1337,110 @@ public class CRF extends Transducer implements Serializable
 		parameters.weights = newWeights;
 	}
 
-	public void setWeightsDimensionDensely ()
+  /**
+   * Call the method that you want to create all of the weights for state transitions and features
+   * then call this to prune the ones that only occur a certain number of times.  If you call
+   * this before you call one of the others ones it just wont do much because the weights wont
+   * already be configured
+   * @param trainingData
+   * @param cutAllBelow
+   */
+      public void pruneFeaturesBelowCount(InstanceList trainingData, final int cutAllBelow) {
+        final TIntIntHashMap[] weightCounts;
+        int numWeights = 0;
+        weightsStructureChanged();
+        weightCounts = new TIntIntHashMap[parameters.weights.length];
+        for (int i = 0; i < parameters.weights.length; i++) {
+          weightCounts[i] = new TIntIntHashMap();
+        }
+        // go through whole training set and count each time the feature occurs
+        for (int i = 0; i < trainingData.size(); i++) {
+          Instance instance = trainingData.get(i);
+          FeatureVectorSequence input = (FeatureVectorSequence) instance.getData();
+          FeatureSequence output = (FeatureSequence) instance.getTarget();
+          if (output != null && output.size() > 0) {
+            // Do it for the paths consistent with the labels...
+            sumLatticeFactory.newSumLattice(this, input, output, new Transducer.Incrementor() {
+              public void incrementTransition(Transducer.TransitionIterator ti, double count) {
+                State source = (CRF.State) ti.getSourceState();
+                FeatureVector input = (FeatureVector) ti.getInput();
+                int index = ti.getIndex();
+                int nwi = source.weightsIndices[index].length;
+                for (int wi = 0; wi < nwi; wi++) {
+                  int weightsIndex = source.weightsIndices[index][wi];
+                  for (int i = 0; i < input.numLocations(); i++) {
+                    int featureIndex = input.indexAtLocation(i);
+                    weightCounts[weightsIndex].adjustOrPutValue(featureIndex, 1, 1);
+                  }
+                }
+              }
+
+              public void incrementInitialState(Transducer.State s, double count) {
+              }
+
+              public void incrementFinalState(Transducer.State s, double count) {
+              }
+            });
+          }
+        }
+        int minCounts[] = new int[10];  // minCounts[0] is how many 1 counts there are
+        DescriptiveStatistics stats = new DescriptiveStatistics();
+        for (int i = 0; i < weightCounts.length; i++) {
+          TIntIntHashMap ww = weightCounts[i];
+          for (int key : ww.keys()) {
+            int count = ww.get(key);
+            if (count < 10) {
+              minCounts[count - 1] += 1;
+              stats.addValue(count);
+            }
+          }
+        }
+        logger.info("Counted features and got: \n" + stats.toString());
+        for (int i = 0; i < minCounts.length; i++) {
+          logger.info("Features with count " + (i + 1) + " " + minCounts[i]);
+        }
+        // if not actually cutting anyting then return early
+        if (cutAllBelow <= 0) return;
+
+        SparseVector[] newWeights = new SparseVector[parameters.weights.length];
+        for (int i = 0; i < parameters.weights.length; i++) {
+          int numLocations = countEligibleEntries(weightCounts[i], cutAllBelow);
+          final int[] indices = new int[numLocations];
+          weightCounts[i].forEachEntry(new TIntIntProcedure() {
+            int j = 0;
+            @Override
+            public boolean execute(int k, int v) {
+              if (v >= cutAllBelow) {
+                indices[j] = k;
+                j += 1;
+              }
+              return true;
+            }
+          });
+
+          newWeights[i] = new IndexedSparseVector(indices, new double[numLocations],
+                                                  numLocations, numLocations, false, true, false);
+          numWeights += (numLocations + 1);
+        }
+        logger.info("New number of weights = " + numWeights);
+        parameters.weights = newWeights;
+      }
+
+  private int countEligibleEntries(TIntIntHashMap weightCounts, final int cutAllBelow) {
+    final int[] counter = new int[1];
+    weightCounts.forEachValue(new TIntProcedure() {
+      @Override
+      public boolean execute(int value) {
+        if (value >= cutAllBelow) {
+          counter[0] += 1;
+        }
+        return true;
+      }
+    });
+    return counter[0];
+  }
+
+  public void setWeightsDimensionDensely ()
 	{
 		weightsStructureChanged();
 		SparseVector[] newWeights = new SparseVector [parameters.weights.length];
@@ -1421,7 +1530,7 @@ public class CRF extends Transducer implements Serializable
 		return states.get(index); }
 
 	public Iterator initialStateIterator () {
-		return initialStates.iterator (); }
+		return initialStates.iterator(); }
 
 	public boolean isTrainable () { return true; }
 
@@ -1499,7 +1608,7 @@ public class CRF extends Transducer implements Serializable
 		int weightsIndex = source.weightsIndices[rowIndex][weightIndex];
 		if (featureIndex < 0)
 			return parameters.defaultWeights[weightsIndex];
-    return parameters.weights[weightsIndex].value (featureIndex);
+    return parameters.weights[weightsIndex].value(featureIndex);
 	}
 	
 	public int getNumParameters () {
@@ -1562,7 +1671,7 @@ public class CRF extends Transducer implements Serializable
 
 	public void print ()
 	{
-		print (new PrintWriter (new OutputStreamWriter (System.out), true));
+		print(new PrintWriter(new OutputStreamWriter(System.out), true));
 	}
 
 	public void print (PrintWriter out)
@@ -1610,7 +1719,7 @@ public class CRF extends Transducer implements Serializable
 			}
 		}
 
-		out.flush ();
+		out.flush();
 	}
 
 
@@ -1632,7 +1741,7 @@ public class CRF extends Transducer implements Serializable
 	private static final int CURRENT_SERIAL_VERSION = 1;
 
 	private void writeObject (ObjectOutputStream out) throws IOException {
-		out.writeInt (CURRENT_SERIAL_VERSION);
+		out.writeInt(CURRENT_SERIAL_VERSION);
 		out.writeObject (inputAlphabet);
 		out.writeObject (outputAlphabet);
 		out.writeObject (states);
@@ -1645,12 +1754,12 @@ public class CRF extends Transducer implements Serializable
 		out.writeInt (weightsValueChangeStamp);
 		out.writeInt (weightsStructureChangeStamp);
 		out.writeInt (cachedNumParametersStamp);
-		out.writeInt (numParameters);
+		out.writeInt(numParameters);
 	}
 
 	@SuppressWarnings("unchecked")
   private void readObject (ObjectInputStream in) throws IOException, ClassNotFoundException {
-		in.readInt ();
+		in.readInt();
 		inputAlphabet = (Alphabet) in.readObject ();
 		outputAlphabet = (Alphabet) in.readObject ();
 		states = (ArrayList<State>) in.readObject ();
