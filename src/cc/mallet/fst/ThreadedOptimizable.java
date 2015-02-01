@@ -7,6 +7,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -82,7 +83,21 @@ public class ThreadedOptimizable implements Optimizable.ByGradientValue {
 		this.cacheIndicator = cacheIndicator;
 
 		logger.info("Creating " + numBatches + " threads for updating gradient...");
-		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numBatches);
+		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numBatches, new ThreadFactory() {
+                  @Override
+                  public Thread newThread(Runnable r) {
+                    Thread thread = Executors.defaultThreadFactory().newThread(r);
+                    thread.setDaemon(true);
+                    thread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+                      @Override
+                      public void uncaughtException(Thread t, Throwable e) {
+                        logger.severe("Problem while training " + e.getMessage());
+                        e.printStackTrace();
+                      }
+                    });
+                    return thread;
+                  }
+                });
 		this.createTasks();
 	}
 

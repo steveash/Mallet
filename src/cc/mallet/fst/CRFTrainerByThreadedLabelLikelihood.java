@@ -78,7 +78,9 @@ public class CRFTrainerByThreadedLabelLikelihood extends TransducerTrainer imple
 	}
 
 	public void shutdown() {
-		threadedOptimizable.shutdown();
+          if (threadedOptimizable != null) {
+            threadedOptimizable.shutdown();
+          }
 	}
 	
 	public CRFOptimizableByBatchLabelLikelihood getOptimizableCRF (InstanceList trainingSet) {
@@ -97,6 +99,10 @@ public class CRFTrainerByThreadedLabelLikelihood extends TransducerTrainer imple
 		if (optimizable == null || optimizable.trainingSet != trainingSet) {
 			optimizable = new CRFOptimizableByBatchLabelLikelihood(crf, trainingSet, numThreads);
 			optimizable.setGaussianPriorVariance(gaussianPriorVariance);
+                        // must shutdown existing thread pool before making a new one
+                        if (threadedOptimizable != null) {
+                          threadedOptimizable.shutdown();
+                        }
 			threadedOptimizable = new ThreadedOptimizable(optimizable, trainingSet, crf.getParameters().getNumFactors(),
 	      new CRFCacheStaleIndicator(crf));
 			optimizer = null;
