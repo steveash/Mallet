@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 
 import java.text.DecimalFormat;
 
+import cc.mallet.grmm.types.Factors;
 import cc.mallet.types.Alphabet;
 import cc.mallet.types.FeatureInducer;
 import cc.mallet.types.FeatureSelection;
@@ -1242,100 +1243,115 @@ public class CRF extends Transducer implements Serializable
 		setWeightsDimensionAsIn(trainingData, false);
 	}
 	
-	// gsc: changing this to consider the case when trainingData is a mix of labeled and unlabeled data,
-	// and we want to use the unlabeled data as well to set some weights (while using the unsupported trick)
+  // gsc: changing this to consider the case when trainingData is a mix of labeled and unlabeled data,
+  // and we want to use the unlabeled data as well to set some weights (while using the unsupported trick)
   // *note*: 'target' sequence of an unlabeled instance is either null or is of size zero.
-	public void setWeightsDimensionAsIn (InstanceList trainingData, boolean useSomeUnsupportedTrick)
-	{
-		final BitSet[] weightsPresent;
-		int numWeights = 0;
-		// The value doesn't actually change, because the "new" parameters will have zero value
-		// but the gradient changes because the parameters now have different layout.
-		weightsStructureChanged();
-		weightsPresent = new BitSet[parameters.weights.length];
-		for (int i = 0; i < parameters.weights.length; i++)
-			weightsPresent[i] = new BitSet();
-		// Put in the weights that are already there
-		for (int i = 0; i < parameters.weights.length; i++) 
-			for (int j = parameters.weights[i].numLocations()-1; j >= 0; j--)
-				weightsPresent[i].set (parameters.weights[i].indexAtLocation(j));
-		// Put in the weights in the training set
-		for (int i = 0; i < trainingData.size(); i++) {
-			Instance instance = trainingData.get(i);
-			FeatureVectorSequence input = (FeatureVectorSequence) instance.getData();
-			FeatureSequence output = (FeatureSequence) instance.getTarget();
-			// gsc: trainingData can have unlabeled instances as well
-			if (output != null && output.size() > 0) {
-				// Do it for the paths consistent with the labels...
-				sumLatticeFactory.newSumLattice (this, input, output, new Transducer.Incrementor() {
-					public void incrementTransition (Transducer.TransitionIterator ti, double count) {
-						State source = (CRF.State)ti.getSourceState();
-						FeatureVector input = (FeatureVector)ti.getInput();
-						int index = ti.getIndex();
-						int nwi = source.weightsIndices[index].length;
-						for (int wi = 0; wi < nwi; wi++) {
-							int weightsIndex = source.weightsIndices[index][wi];
-							for (int i = 0; i < input.numLocations(); i++) {
-								int featureIndex = input.indexAtLocation(i);
-								if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
-										&& (featureSelections == null
-												|| featureSelections[weightsIndex] == null
-												|| featureSelections[weightsIndex].contains(featureIndex)))
-									weightsPresent[weightsIndex].set (featureIndex);
-							}
-						}
-					}
-					public void incrementInitialState (Transducer.State s, double count) {	}
-					public void incrementFinalState (Transducer.State s, double count) {	}
-				});
-			}
-			// ...and also do it for the paths selected by the current model (so we will get some negative weights)
-			if (useSomeUnsupportedTrick && this.getParametersAbsNorm() > 0) {
-				if (i == 0)
-					logger.info ("CRF: Incremental training detected.  Adding weights for some unsupported features...");
-				// (do this once some training is done)
-				sumLatticeFactory.newSumLattice (this, input, null, new Transducer.Incrementor() {
-					public void incrementTransition (Transducer.TransitionIterator ti, double count) {
-						if (count < 0.2) // Only create features for transitions with probability above 0.2 
-							return;  // This 0.2 is somewhat arbitrary -akm
-						State source = (CRF.State)ti.getSourceState();
-						FeatureVector input = (FeatureVector)ti.getInput();
-						int index = ti.getIndex();
-						int nwi = source.weightsIndices[index].length;
-						for (int wi = 0; wi < nwi; wi++) {
-							int weightsIndex = source.weightsIndices[index][wi];
-							for (int i = 0; i < input.numLocations(); i++) {
-								int featureIndex = input.indexAtLocation(i);
-								if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
-										&& (featureSelections == null
-												|| featureSelections[weightsIndex] == null
-												|| featureSelections[weightsIndex].contains(featureIndex)))
-									weightsPresent[weightsIndex].set (featureIndex);
-							}
-						}
-					}
-					public void incrementInitialState (Transducer.State s, double count) {	}
-					public void incrementFinalState (Transducer.State s, double count) {	}
-				});
-			}
-		}
-		SparseVector[] newWeights = new SparseVector[parameters.weights.length];
-		for (int i = 0; i < parameters.weights.length; i++) {
-			int numLocations = weightsPresent[i].cardinality ();
-			//logger.info ("CRF weights["+parameters.weightAlphabet.lookupObject(i)+"] num features = "+numLocations);
-			int[] indices = new int[numLocations];
-			for (int j = 0; j < numLocations; j++) {
-				indices[j] = weightsPresent[i].nextSetBit (j == 0 ? 0 : indices[j-1]+1);
-				//System.out.println ("CRF4 has index "+indices[j]);
-			}
-			newWeights[i] = new IndexedSparseVector (indices, new double[numLocations],
-					numLocations, numLocations, false, false, false);
-			newWeights[i].plusEqualsSparse (parameters.weights[i]);  // Put in the previous weights
-			numWeights += (numLocations + 1);
-		}
-		logger.info("Number of weights = "+numWeights);
-		parameters.weights = newWeights;
-	}
+  public void setWeightsDimensionAsIn(InstanceList trainingData, boolean useSomeUnsupportedTrick) {
+    final BitSet[] weightsPresent;
+    int numWeights = 0;
+    // The value doesn't actually change, because the "new" parameters will have zero value
+    // but the gradient changes because the parameters now have different layout.
+    weightsStructureChanged();
+    weightsPresent = new BitSet[parameters.weights.length];
+    for (int i = 0; i < parameters.weights.length; i++) {
+      weightsPresent[i] = new BitSet();
+    }
+    // Put in the weights that are already there
+    for (int i = 0; i < parameters.weights.length; i++) {
+      for (int j = parameters.weights[i].numLocations() - 1; j >= 0; j--) {
+        weightsPresent[i].set(parameters.weights[i].indexAtLocation(j));
+      }
+    }
+    // Put in the weights in the training set
+    for (int i = 0; i < trainingData.size(); i++) {
+      Instance instance = trainingData.get(i);
+      FeatureVectorSequence input = (FeatureVectorSequence) instance.getData();
+      FeatureSequence output = (FeatureSequence) instance.getTarget();
+      // gsc: trainingData can have unlabeled instances as well
+      if (output != null && output.size() > 0) {
+        // Do it for the paths consistent with the labels...
+        sumLatticeFactory.newSumLattice(this, input, output, new Transducer.Incrementor() {
+          public void incrementTransition(Transducer.TransitionIterator ti, double count) {
+            State source = (CRF.State) ti.getSourceState();
+            FeatureVector input = (FeatureVector) ti.getInput();
+            int index = ti.getIndex();
+            int nwi = source.weightsIndices[index].length;
+            for (int wi = 0; wi < nwi; wi++) {
+              int weightsIndex = source.weightsIndices[index][wi];
+              for (int i = 0; i < input.numLocations(); i++) {
+                int featureIndex = input.indexAtLocation(i);
+                if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
+                    && (featureSelections == null
+                        || featureSelections[weightsIndex] == null
+                        || featureSelections[weightsIndex].contains(featureIndex))) {
+                  weightsPresent[weightsIndex].set(featureIndex);
+                }
+              }
+            }
+          }
+
+          public void incrementInitialState(Transducer.State s, double count) {
+          }
+
+          public void incrementFinalState(Transducer.State s, double count) {
+          }
+        });
+      }
+      // ...and also do it for the paths selected by the current model (so we will get some negative weights)
+      if (useSomeUnsupportedTrick && this.getParametersAbsNorm() > 0) {
+        if (i == 0) {
+          logger.info("CRF: Incremental training detected.  Adding weights for some unsupported features...");
+        }
+        // (do this once some training is done)
+        sumLatticeFactory.newSumLattice(this, input, null, new Transducer.Incrementor() {
+          public void incrementTransition(Transducer.TransitionIterator ti, double count) {
+            if (count < 0.2) // Only create features for transitions with probability above 0.2
+            {
+              return;  // This 0.2 is somewhat arbitrary -akm
+            }
+            State source = (CRF.State) ti.getSourceState();
+            FeatureVector input = (FeatureVector) ti.getInput();
+            int index = ti.getIndex();
+            int nwi = source.weightsIndices[index].length;
+            for (int wi = 0; wi < nwi; wi++) {
+              int weightsIndex = source.weightsIndices[index][wi];
+              for (int i = 0; i < input.numLocations(); i++) {
+                int featureIndex = input.indexAtLocation(i);
+                if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
+                    && (featureSelections == null
+                        || featureSelections[weightsIndex] == null
+                        || featureSelections[weightsIndex].contains(featureIndex))) {
+                  weightsPresent[weightsIndex].set(featureIndex);
+                }
+              }
+            }
+          }
+
+          public void incrementInitialState(Transducer.State s, double count) {
+          }
+
+          public void incrementFinalState(Transducer.State s, double count) {
+          }
+        });
+      }
+    }
+    SparseVector[] newWeights = new SparseVector[parameters.weights.length];
+    for (int i = 0; i < parameters.weights.length; i++) {
+      int numLocations = weightsPresent[i].cardinality();
+      //logger.info ("CRF weights["+parameters.weightAlphabet.lookupObject(i)+"] num features = "+numLocations);
+      int[] indices = new int[numLocations];
+      for (int j = 0; j < numLocations; j++) {
+        indices[j] = weightsPresent[i].nextSetBit(j == 0 ? 0 : indices[j - 1] + 1);
+        //System.out.println ("CRF4 has index "+indices[j]);
+      }
+      newWeights[i] = new IndexedSparseVector(indices, new double[numLocations],
+                                              numLocations, numLocations, false, false, false);
+      newWeights[i].plusEqualsSparse(parameters.weights[i]);  // Put in the previous weights
+      numWeights += (numLocations + 1);
+    }
+    logger.info("Number of weights = " + numWeights);
+    parameters.weights = newWeights;
+  }
 
   /**
    * Call the method that you want to create all of the weights for state transitions and features
@@ -1743,6 +1759,58 @@ public class CRF extends Transducer implements Serializable
 			klfi.induceFeaturesFor (instances, false, false);
 		}
 	}
+
+  /**
+   * This will take a CRF (that might have different structure) and try to apply any starting
+   * point weight values that it can.  It will match everything using the actual input
+   * Alphabet and weightAlphabet names -- so it doesn't matter if the features have changed- it
+   * will just take as much as it can as a starting point.
+   * You would want to call this _after_ you have setup all of the states and dimensions
+   * @param startingPoint
+   */
+  public void initializeApplicableParametersFrom(CRF startingPoint) {
+    int stateCount = 0;
+    int transitionCount = 0;
+    int featureCount = 0;
+    for (int i = 0; i < this.states.size(); i++) {
+      State thisState = this.states.get(i);
+      State thatState = startingPoint.getState(thisState.getName());
+      if (thatState == null) continue;
+
+      parameters.initialWeights[thisState.index] =
+          startingPoint.parameters.initialWeights[thatState.index];
+      parameters.finalWeights[thisState.index] =
+          startingPoint.parameters.finalWeights[thatState.index];
+      stateCount += 1;
+    }
+
+    for (int i = 0; i < parameters.weightAlphabet.size(); i++) {
+      Object weightKey = parameters.weightAlphabet.lookupObject(i);
+      int spIndex = startingPoint.parameters.weightAlphabet.lookupIndex(weightKey, false);
+      if (spIndex < 0) continue;
+
+      transitionCount += 1;
+      this.parameters.defaultWeights[i] = startingPoint.parameters.defaultWeights[spIndex];
+
+      SparseVector thisFe = this.parameters.weights[i];
+      SparseVector thatFe = startingPoint.parameters.weights[spIndex];
+      for (int j = 0; j < thisFe.numLocations(); j++) {
+        int thisIndex = thisFe.indexAtLocation(j);
+        Object thisFeature = this.inputAlphabet.lookupObject(thisIndex);
+        int thatIndex = startingPoint.inputAlphabet.lookupIndex(thisFeature, false);
+        if (thatIndex < 0) continue;
+
+        double thatValue = thatFe.value(thatIndex);
+        if (thatValue != 0) {
+          thisFe.setValueAtLocation(j, thatValue);
+          featureCount += 1;
+        }
+      }
+    }
+    weightsValueChanged();
+    logger.info("Finished intiailizing from previous model: matched " + transitionCount +
+                " transitions, " + stateCount + " states, and " + featureCount + " features");
+  }
 
 	// TODO Put support to Optimizable here, including getValue(InstanceList)??
 
