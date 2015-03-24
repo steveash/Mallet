@@ -101,7 +101,10 @@ public class Multinomial extends FeatureVector
 
 	public double probability (int featureIndex)
 	{
-		return values[featureIndex];
+          if (featureIndex >= values.length) {
+            return 0.0;
+          }
+          return values[featureIndex];
 	}
 
 	public double probability (Object key)
@@ -113,6 +116,10 @@ public class Multinomial extends FeatureVector
 
 	public double logProbability (int featureIndex)
 	{
+          // never seen this so impossible weight
+          if (featureIndex >= values.length) {
+            return Double.NEGATIVE_INFINITY;
+          }
 		return Math.log(values[featureIndex]);
 	}
 

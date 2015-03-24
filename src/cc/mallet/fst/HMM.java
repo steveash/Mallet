@@ -505,6 +505,23 @@ public class HMM extends Transducer implements Serializable {
 		return start;
 	}
 
+        public void addStartState ()
+  	{
+  		addStartState ("<START>");
+  	}
+
+  	public void addStartState (String name)
+  	{
+//  		for (int i = 0; i < numStates (); i++)
+//  			ini.initialWeights[i] = IMPOSSIBLE_WEIGHT;
+
+  		String[] dests = new String [numStates()];
+  		for (int i = 0; i < dests.length; i++)
+  			dests[i] = getState(i).getName();
+
+  		addState (name, 0, 0.0, dests, dests); // initialWeight of 0.0
+  	}
+
 	public State getState(String name) {
 		return (State) name2state.get(name);
 	}

@@ -15,8 +15,9 @@ public class HMMTrainerByLikelihood extends TransducerTrainer {
 	InstanceList trainingSet, unlabeledSet;
 	int iterationCount = 0;
 	boolean converged = false;
+        private double threshold = 0.001;
 
-	public HMMTrainerByLikelihood(HMM hmm) {
+        public HMMTrainerByLikelihood(HMM hmm) {
 		this.hmm = hmm;
 	}
 
@@ -30,7 +31,15 @@ public class HMMTrainerByLikelihood extends TransducerTrainer {
 		return iterationCount;
 	}
 
-	@Override
+        public double getThreshold() {
+          return threshold;
+        }
+
+        public void setThreshold(double threshold) {
+          this.threshold = threshold;
+        }
+
+        @Override
 	public boolean isFinishedTraining() {
 		return converged;
 	}
@@ -46,8 +55,7 @@ public class HMMTrainerByLikelihood extends TransducerTrainer {
 			hmm.reset();
 
 		converged = false;
-		double threshold = 0.001;
-		double logLikelihood = Double.NEGATIVE_INFINITY, prevLogLikelihood;
+          double logLikelihood = Double.NEGATIVE_INFINITY, prevLogLikelihood;
 		for (int iter = 0; iter < numIterations; iter++) {
 			prevLogLikelihood = logLikelihood;
 			logLikelihood = 0;

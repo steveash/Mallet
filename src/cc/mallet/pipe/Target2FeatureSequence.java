@@ -30,6 +30,8 @@ public class Target2FeatureSequence extends Pipe implements Serializable
 	{
 		//Object in = carrier.getData();
 		Object target = carrier.getTarget();
+                if (target == null) return carrier;
+
 		if (target instanceof FeatureSequence)
 			;																	// Nothing to do
 		else if (target instanceof TokenSequence) {
