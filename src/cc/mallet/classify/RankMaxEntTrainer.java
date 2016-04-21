@@ -13,13 +13,12 @@ package cc.mallet.classify;
 //package edu.umass.cs.mallet.users.culotta.cluster.classify;
 
 //import edu.umass.cs.mallet.base.classify.*;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.logging.Logger;
 
 import cc.mallet.optimize.ConjugateGradient;
@@ -27,25 +26,17 @@ import cc.mallet.optimize.LimitedMemoryBFGS;
 import cc.mallet.optimize.Optimizable;
 import cc.mallet.optimize.Optimizer;
 import cc.mallet.types.Alphabet;
-import cc.mallet.types.ExpGain;
-import cc.mallet.types.FeatureInducer;
 import cc.mallet.types.FeatureSelection;
 import cc.mallet.types.FeatureVector;
 import cc.mallet.types.FeatureVectorSequence;
-import cc.mallet.types.GradientGain;
-import cc.mallet.types.InfoGain;
 import cc.mallet.types.Instance;
 import cc.mallet.types.InstanceList;
 import cc.mallet.types.Label;
 import cc.mallet.types.LabelAlphabet;
-import cc.mallet.types.LabelVector;
 import cc.mallet.types.Labels;
 import cc.mallet.types.MatrixOps;
-import cc.mallet.types.RankedFeatureVector;
-import cc.mallet.util.CommandOption;
 import cc.mallet.util.MalletLogger;
 import cc.mallet.util.MalletProgressMessageLogger;
-import cc.mallet.util.Maths;
 
 
 /**
@@ -423,8 +414,10 @@ public class RankMaxEntTrainer extends MaxEntTrainer
 		}
 		
 		public void getParameters (double[] buff) {
-			if (buff == null || buff.length != parameters.length)
-				buff = new double [parameters.length];
+			if (buff == null || buff.length != parameters.length) {
+				//buff = new double[parameters.length];
+				throw new IllegalArgumentException("Can't get parameters into a null array; java is pass by val");
+			}
 			System.arraycopy (parameters, 0, buff, 0, parameters.length);
 		}
 		
