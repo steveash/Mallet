@@ -106,7 +106,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 		Lock lock = this.lock.writeLock();
 		lock.lock();
 		try {
-			if (index2location == null) {
+			if (index2location != null) {
 				return; // someone beat us to it
 			}
 			this.maxIndex = indices[indices.length - 1];
