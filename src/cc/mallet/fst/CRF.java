@@ -1458,6 +1458,20 @@ public class CRF extends Transducer implements Serializable
     return counter[0];
   }
 
+	/**
+	 * CRFs have lots of sparse vectors for weights and with large ones the IndexedSparseVector is just not appropriate
+	 * due to the way it does its indexing.  So if we train on big heap machines but want to run at test time on
+	 * lesser heap machines then we can sacrifice some CPU and use hash based sparse vectors
+	 */
+	public void makeParametersHashSparse() {
+		for (int i = 0; i < this.parameters.weights.length; i++) {
+			SparseVector current = this.parameters.weights[i];
+			if (current instanceof IndexedSparseVector) {
+				this.parameters.weights[i] = current.copyToHashedSparse();
+			}
+		}
+	}
+
   /**
    * Prints stats about the learned feature weights and then prunes any whose abs value is
    * below the value at the specified percentile.  If zero is passed in then nothing is

@@ -891,8 +891,11 @@ public class SparseVector implements ConstantMatrix, Vector, Serializable
 			return false;
 		return MatrixOps.isNaNOrInfinite(values);
 	}
-	
-	
+
+	public HashedSparseVector copyToHashedSparse() {
+		return new HashedSparseVector(this.indices, this.values);
+	}
+
 	protected void sortIndices ()
 	//public void sortIndices () //modified by Limin Yao
 	{
