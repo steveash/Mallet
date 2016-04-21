@@ -17,26 +17,26 @@
 
 package cc.mallet.types;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Arrays;
-import java.util.logging.*;
-import java.io.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Logger;
 
-import cc.mallet.types.Alphabet;
-import cc.mallet.types.FeatureSequence;
-import cc.mallet.types.Vector;
 import cc.mallet.util.MalletLogger;
-import cc.mallet.util.PropertyList;
 import gnu.trove.TIntIntHashMap;
 
 public class HashedSparseVector extends SparseVector implements Serializable 
 {
 	private static Logger logger = MalletLogger.getLogger(SparseVector.class.getName());
 
-	
-	TIntIntHashMap index2location;
-	int maxIndex;
+
+	private final ReadWriteLock lock = new ReentrantReadWriteLock();
+	volatile TIntIntHashMap index2location;
+	volatile int maxIndex;
 	
 	public HashedSparseVector (int[] indices, double[] values, 
 											 int capacity, int size,
@@ -79,42 +79,61 @@ public class HashedSparseVector extends SparseVector implements Serializable
 		System.arraycopy (indices, 0, newIndices, 0, indices.length);
 		HashedSparseVector sv = new HashedSparseVector (newIndices, new double[values.length],
 														 values.length, values.length, false, false, false);
-    // share index2location trick ala IndexedSparseVector
-    if (index2location != null) {
-      sv.index2location = index2location;
-      sv.maxIndex = maxIndex;
-    }
-    return sv;
+    	// share index2location trick ala IndexedSparseVecto
+		Lock lock = this.lock.readLock();
+		lock.lock();
+		try {
+    		if (index2location != null) {
+				sv.index2location = index2location;
+      			sv.maxIndex = maxIndex;
+    		}
+    		return sv;
+		} finally {
+			lock.unlock();
+		}
 	}
 	
 	// Methods that change values
 
   public void indexVector ()
   {
-    if ((index2location == null) && (indices.length > 0))
-      setIndex2Location ();
+	  throw new UnsupportedOperationException("removed this while fixing thread safe stuff");
   }
 
 	private void setIndex2Location ()
 	{
 		//System.out.println ("HashedSparseVector setIndex2Location indices.length="+indices.length+" maxindex="+indices[indices.length-1]);
-		assert (index2location == null);
-		assert (indices.length > 0);
-		this.maxIndex = indices[indices.length - 1];
-		this.index2location = new TIntIntHashMap (numLocations ());
-		//index2location.setDefaultValue (-1);
-		for (int i = 0; i < indices.length; i++)
-			index2location.put (indices[i], i);
+		Lock lock = this.lock.writeLock();
+		lock.lock();
+		try {
+			if (index2location == null) {
+				return; // someone beat us to it
+			}
+			this.maxIndex = indices[indices.length - 1];
+			this.index2location = new TIntIntHashMap(numLocations());
+			//index2location.setDefaultValue (-1);
+			for (int i = 0; i < indices.length; i++) {
+				index2location.put(indices[i], i);
+			}
+		} finally {
+			lock.unlock();
+		}
 	}
 
 	public final void setValue (int index, double value) {
-		if (index2location == null)
-			setIndex2Location ();
-		int location = index2location.get(index);
-		if (index2location.contains (index))
-			values[location] = value;
-		else
-			throw new IllegalArgumentException ("Trying to set value that isn't present in HashedSparseVector");
+		Lock lock = this.lock.writeLock();
+		lock.lock();
+		try {
+			if (index2location == null)
+				setIndex2Location();
+			int location = index2location.get(index);
+			if (index2location.contains(index))
+				values[location] = value;
+			else
+				throw new IllegalArgumentException("Trying to set value that isn't present in HashedSparseVector");
+		} finally {
+			lock.unlock();
+		}
 	}
 
 	public final void setValueAtLocation (int location, double value)
@@ -125,12 +144,18 @@ public class HashedSparseVector extends SparseVector implements Serializable
 	// I dislike this name, but it's consistent with DenseVector. -cas
 	public void columnPlusEquals (int index, double value) {
 		if (index2location == null)
-			setIndex2Location ();
-		int location = index2location.get(index);
-		if (index2location.contains (index))
-			values[location] += value;
-		else
-			throw new IllegalArgumentException ("Trying to set value that isn't present in HashedSparseVector");
+			setIndex2Location();
+		Lock lock = this.lock.readLock();
+		lock.lock();
+		try {
+			if (index2location.contains(index)) {
+				int location = index2location.get(index);
+				values[location] += value;
+			} else
+				throw new IllegalArgumentException("Trying to set value that isn't present in HashedSparseVector");
+		} finally {
+			lock.unlock();
+		}
 	}
 		
 	public final double dotProduct (DenseVector v) {
@@ -146,75 +171,95 @@ public class HashedSparseVector extends SparseVector implements Serializable
 		
     public final double dotProduct (SparseVector v)
     {
-	if (indices.length == 0)
-	    return 0;
-	if (index2location == null)
-	    setIndex2Location ();
-	double ret = 0;
-	int vNumLocs = v.numLocations();
-	if (values == null) {
-	    // this vector is binary
-	    for (int i = 0; i < vNumLocs; i++) {
-		int index = v.indexAtLocation(i);
-		if (index > maxIndex)
-		    break;
-		if (index2location.contains(index))
-		    ret += v.valueAtLocation (i);
-	    }
-	} else {
-	    for (int i = 0; i < vNumLocs; i++) {
-		int index = v.indexAtLocation(i);
-		if (index > maxIndex)
-		    break;
-		
-		if (index2location.containsKey(index)) {
-		    ret += values[ index2location.get(index) ] * v.valueAtLocation (i);
+		if (indices.length == 0)
+			return 0;
+		if (index2location == null)
+			setIndex2Location();
+
+		Lock lock = this.lock.readLock();
+		lock.lock();
+		try {
+			double ret = 0;
+			int vNumLocs = v.numLocations();
+			if (values == null) {
+				// this vector is binary
+				for (int i = 0; i < vNumLocs; i++) {
+					int index = v.indexAtLocation(i);
+					if (index > maxIndex)
+						break;
+					if (index2location.contains(index))
+						ret += v.valueAtLocation(i);
+				}
+			} else {
+				for (int i = 0; i < vNumLocs; i++) {
+					int index = v.indexAtLocation(i);
+					if (index > maxIndex)
+						break;
+
+					if (index2location.containsKey(index)) {
+						ret += values[index2location.get(index)] * v.valueAtLocation(i);
+					}
+
+					//int location = index2location.get(index);
+					//if (location >= 0)
+					//	ret += values[location] * v.valueAtLocation (i);
+				}
+			}
+
+			return ret;
+		} finally {
+			lock.unlock();
 		}
-		
-		
-		//int location = index2location.get(index);
-		//if (location >= 0)
-		//	ret += values[location] * v.valueAtLocation (i);
-	    }
-	}
-	return ret;
     }
-	
-    public final void plusEqualsSparse (SparseVector v, double factor)
-    {
-	if (indices.length == 0)
-	    return;
-	if (index2location == null)
-	    setIndex2Location ();
-	int vNumLocs = v.numLocations();
-	for (int i = 0; i < vNumLocs; i++) {
-	    int index = v.indexAtLocation(i);
-	    if (index > maxIndex)
-		break;
-	    
-	    if (index2location.containsKey(index)) {
-		values[ index2location.get(index) ] += v.valueAtLocation (i) * factor;
-	    }
-	    
-	    //int location = index2location.get(index);
-	    //if (location >= 0)
-	    //			values[location] += v.valueAtLocation (i) * factor;
+
+	public final void plusEqualsSparse(SparseVector v, double factor) {
+		if (indices.length == 0)
+			return;
+		if (index2location == null)
+			setIndex2Location();
+
+		Lock lock = this.lock.readLock();
+		lock.lock();
+		try {
+			int vNumLocs = v.numLocations();
+			for (int i = 0; i < vNumLocs; i++) {
+				int index = v.indexAtLocation(i);
+				if (index > maxIndex)
+					break;
+
+				if (index2location.containsKey(index)) {
+					values[index2location.get(index)] += v.valueAtLocation(i) * factor;
+				}
+
+				//int location = index2location.get(index);
+				//if (location >= 0)
+				//			values[location] += v.valueAtLocation (i) * factor;
+			}
+		} finally {
+			lock.unlock();
+		}
 	}
-    }
 
 	public final void plusEqualsSparse (SparseVector v)
 	{
 		if (indices.length == 0)
-	    return;
+			return;
 		if (index2location == null)
-	    setIndex2Location ();
-		for (int i = 0; i < v.numLocations(); i++) {
-	    int index = v.indexAtLocation(i);
-	    if (index > maxIndex)
-				break;
-	    int location = index2location.get(index);
-	    if (index2location.contains (index))
-				values[location] += v.valueAtLocation (i);
+			setIndex2Location();
+
+		Lock lock = this.lock.readLock();
+		lock.lock();
+		try {
+			for (int i = 0; i < v.numLocations(); i++) {
+				int index = v.indexAtLocation(i);
+				if (index > maxIndex)
+					break;
+				int location = index2location.get(index);
+				if (index2location.contains(index))
+					values[location] += v.valueAtLocation(i);
+			}
+		} finally {
+			lock.unlock();
 		}
 	}
 	
