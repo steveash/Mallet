@@ -11,7 +11,7 @@
 /**
 	 Sparse, yet its (present) values can be changed.  You can't, however, add
 	 values that were (zero and) missing.
-	 
+
    @author Andrew McCallum <a href="mailto:mccallum@cs.umass.edu">mccallum@cs.umass.edu</a>
  */
 
@@ -29,16 +29,16 @@ import java.util.logging.Logger;
 import cc.mallet.util.MalletLogger;
 import gnu.trove.TIntIntHashMap;
 
-public class HashedSparseVector extends SparseVector implements Serializable 
+public class HashedSparseVector extends SparseVector implements Serializable
 {
 	private static Logger logger = MalletLogger.getLogger(SparseVector.class.getName());
 
 
-	private final ReadWriteLock lock = new ReentrantReadWriteLock();
+	private volatile ReadWriteLock lock = new ReentrantReadWriteLock();
 	volatile TIntIntHashMap index2location;
 	volatile int maxIndex;
-	
-	public HashedSparseVector (int[] indices, double[] values, 
+
+	public HashedSparseVector (int[] indices, double[] values,
 											 int capacity, int size,
 											 boolean copy,
 											 boolean checkIndicesSorted,
@@ -92,7 +92,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 			lock.unlock();
 		}
 	}
-	
+
 	// Methods that change values
 
   public void indexVector ()
@@ -157,7 +157,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 			lock.unlock();
 		}
 	}
-		
+
 	public final double dotProduct (DenseVector v) {
 		double ret = 0;
 		if (values == null)
@@ -168,7 +168,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 				ret += values[i] * v.value(indices[i]);
 		return ret;
 	}
-		
+
     public final double dotProduct (SparseVector v)
     {
 		if (indices.length == 0)
@@ -262,7 +262,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 			lock.unlock();
 		}
 	}
-	
+
 	public final void setAll (double v)
 	{
 		for (int i = 0; i < values.length; i++)
@@ -270,7 +270,7 @@ public class HashedSparseVector extends SparseVector implements Serializable
 	}
 
 
-	
+
 	//Serialization
 
 	private static final long serialVersionUID = 1;
@@ -281,22 +281,22 @@ public class HashedSparseVector extends SparseVector implements Serializable
 	static final int NULL_INTEGER = -1;
 
 	private void writeObject (ObjectOutputStream out) throws IOException {
-		out.writeInt (CURRENT_SERIAL_VERSION);
-    out.writeInt (maxIndex);
-	}
-
-	private void readObject (ObjectInputStream in) throws IOException, ClassNotFoundException {
-		int version = in.readInt ();
-    maxIndex = in.readInt ();
-
-    if (version == 0) {
-      // gobble up index2location
-      Object obj = in.readObject ();
-      if (obj != null && !(obj instanceof TIntIntHashMap)) {
-        throw new IOException ("Unexpected object in de-serialization: "+obj);
-      }
+        out.writeInt(CURRENT_SERIAL_VERSION);
+        out.writeInt(maxIndex);
     }
 
-	}
+	private void readObject (ObjectInputStream in) throws IOException, ClassNotFoundException {
+        int version = in.readInt();
+        lock = new ReentrantReadWriteLock();
+        maxIndex = in.readInt();
+
+        if (version == 0) {
+            // gobble up index2location
+            Object obj = in.readObject();
+            if (obj != null && !(obj instanceof TIntIntHashMap)) {
+                throw new IOException("Unexpected object in de-serialization: " + obj);
+            }
+        }
+    }
 
 }
