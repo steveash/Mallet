@@ -26,10 +26,14 @@
 package cc.mallet.classify.evaluate;
 
 
+import static org.apache.commons.lang3.StringUtils.leftPad;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.logging.*;
 import java.text.*;
+
+import org.apache.commons.lang3.StringUtils;
 
 import cc.mallet.classify.Classification;
 import cc.mallet.classify.Trial;
@@ -105,29 +109,34 @@ public class ConfusionMatrix
 	public String toString () {
 		StringBuffer sb = new StringBuffer ();
 		int maxLabelNameLength = 0;
+		int maxCountLength = 0;
+		int maxTotalLength = 0;
 		LabelAlphabet labelAlphabet = trial.getClassifier().getLabelAlphabet();
 		for (int i = 0; i < numClasses; i++) {
 			int len = labelAlphabet.lookupLabel(i).toString().length();
-			if (maxLabelNameLength < len)
-				maxLabelNameLength = len;
-		}
-
-		sb.append ("Confusion Matrix, row=true, column=predicted  accuracy="+trial.getAccuracy()+"\n");
-		for (int i = 0; i < maxLabelNameLength-5+4; i++) sb.append (' ');
-		sb.append ("label");
-		for (int c2 = 0; c2 < Math.min(10,numClasses); c2++)	sb.append ("   "+c2);
-		for (int c2 = 10; c2 < numClasses; c2++)	sb.append ("  "+c2);
-		sb.append ("  |total\n");
-		for (int c = 0; c < numClasses; c++) {
-			appendJustifiedInt (sb, c, false);
-			String labelName = labelAlphabet.lookupLabel(c).toString();
-			for (int i = 0; i < maxLabelNameLength-labelName.length(); i++) sb.append (' ');
-			sb.append (" "+labelName+" ");
-			for (int c2 = 0; c2 < numClasses; c2++) {
-				appendJustifiedInt (sb, values[c][c2], true);
-				sb.append (' ');
+			maxLabelNameLength = Math.max(maxLabelNameLength, len);
+			for (int j = 0; j <= i; j++) {
+				maxCountLength = Math.max(maxCountLength, Integer.toString(values[i][j]).length());
 			}
-			sb.append (" |"+ MatrixOps.sum(values[c]));
+			maxTotalLength = Math.max(maxTotalLength, Integer.toString(MatrixOps.sum(values[i])).length());
+		}
+		int indexWidth = Integer.toString(numClasses).length() + 1;
+		int cellWidth = Math.max(indexWidth, maxCountLength + 1);
+		sb.append("Confusion Matrix, row=true, column=predicted  accuracy=").append(trial.getAccuracy()).append("\n");
+		sb.append(leftPad("label", indexWidth + maxLabelNameLength + 2));
+		for (int i = 0; i < numClasses; i++) {
+			sb.append(leftPad(Integer.toString(i), cellWidth));
+		}
+		sb.append(" |").append(leftPad("total", maxTotalLength + 2)).append("\n");
+		for (int c = 0; c < numClasses; c++) {
+			sb.append(leftPad(Integer.toString(c), indexWidth));
+			String labelName = labelAlphabet.lookupLabel(c).toString();
+			sb.append(leftPad(labelName, maxLabelNameLength + 2));
+			for (int c2 = 0; c2 < numClasses; c2++) {
+				sb.append(leftPad(Integer.toString(values[c][c2]), cellWidth));
+			}
+			sb.append(" |").append(leftPad(Integer.toString(MatrixOps.sum(values[c])), maxTotalLength + 2));
+			sb.append(leftPad(String.format("%.2f%%", getPrecision(c) * 100.0), 8));
 			sb.append ('\n');
 		}
 		return sb.toString();
