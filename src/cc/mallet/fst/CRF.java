@@ -1239,6 +1239,15 @@ public class CRF extends Transducer implements Serializable
 		weightsStructureChanged(); // Is this necessary? -akm 11/2007
 	}
 
+	/**
+	 * A filter callback that allows you to specify constraints on allowed feature -> state combinations
+	 * this is useful to combat noisy labels and to filter speculative features from the "unsupported trick"
+	 */
+	public interface FeatureFilter {
+		boolean isVectorAllowed(FeatureVector vector, String sourceState, String targetState, boolean isUnsupportedTrick);
+		boolean isFeatureAllowed(Object feature, String sourceState, String targetState, boolean isUnsupportedTrick);
+	}
+
 	public void setWeightsDimensionAsIn (InstanceList trainingData) {
 		setWeightsDimensionAsIn(trainingData, false);
 	}
@@ -1247,8 +1256,14 @@ public class CRF extends Transducer implements Serializable
   // and we want to use the unlabeled data as well to set some weights (while using the unsupported trick)
   // *note*: 'target' sequence of an unlabeled instance is either null or is of size zero.
   public void setWeightsDimensionAsIn(InstanceList trainingData, boolean useSomeUnsupportedTrick) {
+		setWeightsDimensionAsIn(trainingData, useSomeUnsupportedTrick, null);
+  }
+
+  public void setWeightsDimensionAsIn(InstanceList trainingData, boolean useSomeUnsupportedTrick, final FeatureFilter filter) {
     final BitSet[] weightsPresent;
     int numWeights = 0;
+	  // [0] is training data feature matches, [1] is unsupported trick feature matches, [2] is training data vector, [3] unsupported trick vector matches
+    final int[] filterMatchCounts = new int[] {0, 0, 0, 0};
     // The value doesn't actually change, because the "new" parameters will have zero value
     // but the gradient changes because the parameters now have different layout.
     weightsStructureChanged();
@@ -1274,12 +1289,27 @@ public class CRF extends Transducer implements Serializable
           public void incrementTransition(Transducer.TransitionIterator ti, double count) {
             State source = (CRF.State) ti.getSourceState();
             FeatureVector input = (FeatureVector) ti.getInput();
+
             int index = ti.getIndex();
             int nwi = source.weightsIndices[index].length;
-            for (int wi = 0; wi < nwi; wi++) {
+			  String destName = source.destinationNames[index];
+			  String srcName = source.name;
+			  boolean filterAllowed = true;
+			  if (filter != null && !filter.isVectorAllowed(input, srcName, destName, false)) {
+				  filterMatchCounts[2] += 1;
+				  return; // dont include this vector
+			  }
+			  for (int wi = 0; wi < nwi; wi++) {
               int weightsIndex = source.weightsIndices[index][wi];
               for (int i = 0; i < input.numLocations(); i++) {
                 int featureIndex = input.indexAtLocation(i);
+                if (filter != null) {
+                	Object featureValue = input.getAlphabet().lookupObject(featureIndex);
+                	if (!filter.isFeatureAllowed(featureValue, srcName, destName, false)) {
+                		filterAllowed = false;
+                		continue;
+					}
+				}
                 if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
                     && (featureSelections == null
                         || featureSelections[weightsIndex] == null
@@ -1288,6 +1318,9 @@ public class CRF extends Transducer implements Serializable
                 }
               }
             }
+            if (!filterAllowed) {
+			  	filterMatchCounts[0] += 1;
+			}
           }
 
           public void incrementInitialState(Transducer.State s, double count) {
@@ -1312,11 +1345,25 @@ public class CRF extends Transducer implements Serializable
             State source = (CRF.State) ti.getSourceState();
             FeatureVector input = (FeatureVector) ti.getInput();
             int index = ti.getIndex();
+		    String destName = source.destinationNames[index];
+		    String srcName = source.name;
+		    boolean filterAllowed = true;
             int nwi = source.weightsIndices[index].length;
+			if (filter != null && !filter.isVectorAllowed(input, srcName, destName, true)) {
+				filterMatchCounts[3] += 1;
+				return;
+			}
             for (int wi = 0; wi < nwi; wi++) {
               int weightsIndex = source.weightsIndices[index][wi];
               for (int i = 0; i < input.numLocations(); i++) {
                 int featureIndex = input.indexAtLocation(i);
+                if (filter != null) {
+                	Object featureValue = input.getAlphabet().lookupObject(featureIndex);
+                	if (!filter.isFeatureAllowed(featureValue, srcName, destName, true)) {
+                		filterAllowed = false;
+                		continue;
+					}
+				}
                 if ((globalFeatureSelection == null || globalFeatureSelection.contains(featureIndex))
                     && (featureSelections == null
                         || featureSelections[weightsIndex] == null
@@ -1325,6 +1372,9 @@ public class CRF extends Transducer implements Serializable
                 }
               }
             }
+            if (!filterAllowed) {
+            	filterMatchCounts[1] += 1;
+			}
           }
 
           public void incrementInitialState(Transducer.State s, double count) {
@@ -1350,6 +1400,12 @@ public class CRF extends Transducer implements Serializable
       numWeights += (numLocations + 1);
     }
     logger.info("Number of weights = " + numWeights);
+    if (filter != null) {
+    	logger.info("Filter excluded " + filterMatchCounts[0] + " transitions from training data");
+    	logger.info("Filter excluded " + filterMatchCounts[1] + " transitions from unsupported trick");
+    	logger.info("Filter excluded " + filterMatchCounts[2] + " vectors from training data");
+    	logger.info("Filter excluded " + filterMatchCounts[3] + " vectors from unsupported trick");
+	}
     parameters.weights = newWeights;
   }
 
